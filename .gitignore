@@ -1,16 +1,30 @@
 # Dados sensíveis e credenciais (WhatsApp e colaboradores)
 *.env
 .env*
-data/*.json
-data/*.csv
+!.env.example
+# Dados locais, backups e saídas geradas. Arquivos de configuração, como
+# escala.json e aliases.json, permanecem elegíveis para versionamento.
+data/messages.json
+data/messages.backup.json
+data/aliases.backup.json
+data/test_messages_1000.json
+data/parser_failures.json
 *.log
+*.tmp
+*.swp
 
 # Ambiente virtual do Python
 .venv/
 venv/
 env/
 __pycache__/
-*.pyc
+*.py[cod]
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Arquivos do sistema operacional e editores
 .vscode/
@@ -24,4 +38,4 @@ node_modules/
 .wwebjs_auth/
 .wwebjs_cache/
 whatsapp/.wwebjs_auth/
-whatsapp/.wwebjs_cache/s
+whatsapp/.wwebjs_cache/

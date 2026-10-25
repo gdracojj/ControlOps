@@ -66,17 +66,6 @@
     "id": "1790612999.923810"
   },
   {
-    "group": "PI-TSA-CTOP",
-    "raw": "PI-TSA-CTOP PD7\n25/09/26\nASSUNÇÃO PLANTÃO 07:00 as 19:00 Cláudio Roberto Assumiu Posto Do Antônio\nVigia Cláudio Roberto Assumindo Serviço Das 07:00 as 19:00 Horas",
-    "post_raw": "PI-TSA-CTOP",
-    "incoming": "Cláudio Roberto",
-    "outgoing": null,
-    "assumption_time": "07:00",
-    "date": "2026-09-25",
-    "received_at": "2026-09-25T07:00:00",
-    "id": "1790612999.934242"
-  },
-  {
     "group": "SE-AJU-AJU",
     "raw": "Assunção de serviço\nVigia: João evangelista assumindo o posto de serviço das 07h as 19h do Vigia: Márcio José\nPosto V-tal SE AJU\ndata: 25/09/2026",
     "post_raw": "SE-AJU-AJU",
@@ -97,28 +86,6 @@
     "date": "2026-09-25",
     "received_at": "2026-09-25T07:00:00",
     "id": "1790612999.953591"
-  },
-  {
-    "group": "120363413612292600@g.us",
-    "raw": "Empresa: PD7 Tech Ltda\nBase V.tal: Posto RO-JIP-EJIP – Diurno\nData: 29/09/2026\nAssumindo serviço 18h00–06h00 \nCleidiane Caliman",
-    "post_raw": "RO-JIP-EJIP",
-    "incoming": "Cleidiane Caliman",
-    "outgoing": null,
-    "assumption_time": "18:00",
-    "date": "2026-09-29",
-    "received_at": "2026-09-30T19:13:01.000Z",
-    "validation": {
-      "status": "DIVERGÊNCIA",
-      "reason": "Horário divergente",
-      "employee": "CLEIDIANE CALIMAN MARIANO",
-      "post": "RO-JIP-EJIP",
-      "expected_post": "RO-JIP-EJIP",
-      "expected_time": "07:00",
-      "received_time": "18:00",
-      "score": 100.0,
-      "date": "2026-09-29"
-    },
-    "id": "1790795587.699023"
   },
   {
     "group": "120363406687331271@g.us",
@@ -347,28 +314,6 @@
       "received_time": null
     },
     "id": "1790796513.713182"
-  },
-  {
-    "group": "120363413612292600@g.us",
-    "raw": "Empresa: PD7 Tech Ltda\nBase V.tal: Posto RO-JIP-EJIP – Diurno\nData: 29/09/2026\nAssumindo serviço 18h00–06h00 \nCleidiane Caliman",
-    "post_raw": "RO-JIP-EJIP",
-    "incoming": "Cleidiane Caliman",
-    "outgoing": null,
-    "assumption_time": "18:00",
-    "date": "2026-09-29",
-    "received_at": "2026-09-30T19:28:50.000Z",
-    "validation": {
-      "status": "DIVERGÊNCIA",
-      "reason": "Horário divergente",
-      "employee": "CLEIDIANE CALIMAN MARIANO",
-      "post": "RO-JIP-EJIP",
-      "expected_post": "RO-JIP-EJIP",
-      "expected_time": "07:00",
-      "received_time": "18:00",
-      "score": 100.0,
-      "date": "2026-09-29"
-    },
-    "id": "1790796530.577568"
   },
   {
     "group": "120363406687331271@g.us",
