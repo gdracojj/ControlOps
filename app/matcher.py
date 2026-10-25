@@ -1,48 +1,80 @@
+
 import json
 import re
+from datetime import date, datetime
 from pathlib import Path
-from datetime import datetime, date
 
-from .parser import norm, similarity
+from .parser import similarity
+
 
 BASE = Path(__file__).resolve().parent.parent
-SCALE = json.loads(
-    (BASE / "data" / "escala.json").read_text(encoding="utf-8")
-)
-ALIASES = json.loads(
-    (BASE / "data" / "aliases.json").read_text(encoding="utf-8")
-)
+SCALE_PATH = BASE / "data" / "escala.json"
+ALIASES_PATH = BASE / "data" / "aliases.json"
+
+VALID_PLANTOES = {
+    "diurno_a",
+    "noturno_a",
+    "diurno_b",
+    "noturno_b",
+}
+
+TIME_PATTERN = re.compile(r"^(\d{1,2}):(\d{2})$")
+
+
+def load_json(path: Path):
+    """Carrega um arquivo JSON de configuração."""
+    with path.open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+SCALE = load_json(SCALE_PATH)
+ALIASES = load_json(ALIASES_PATH)
 
 
 def canonical_post(post):
-    if not post:
+    """Normaliza o código do posto e aplica aliases conhecidos."""
+    if post is None:
         return None
 
-    p = post.upper().strip()
-    p = p.replace("P0STO-", "POSTO-")
-    p = re.sub(r"^POSTO[-\s]+", "", p)
+    value = str(post).strip().upper()
+    if not value:
+        return None
 
-    return ALIASES.get(p, p)
+    value = value.replace("P0STO-", "POSTO-")
+    value = re.sub(r"^POSTO[-\s]+", "", value)
+
+    return ALIASES.get(value, value)
 
 
 def parse_date(value):
-    """Converte datas comuns do parser para datetime.date."""
+    """Converte datas ISO ou brasileiras para datetime.date."""
     if not value:
         return None
+
+    if isinstance(value, datetime):
+        return value.date()
 
     if isinstance(value, date):
         return value
 
     value = str(value).strip()
+    if not value:
+        return None
 
-    # ISO: 2026-09-04 / 2026-09-04T06:30:00
+    # ISO: 2026-10-10 ou 2026-10-10T06:30:00
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+        return datetime.fromisoformat(
+            value.replace("Z", "+00:00")
+        ).date()
     except ValueError:
         pass
 
-    # BR: 04/09/2026 / 04/09/2026 06:30
-    for fmt in ("%d/%m/%Y", "%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S"):
+    # BR: 10/10/2026, com ou sem horário
+    for fmt in (
+        "%d/%m/%Y",
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y %H:%M:%S",
+    ):
         try:
             return datetime.strptime(value, fmt).date()
         except ValueError:
@@ -52,10 +84,10 @@ def parse_date(value):
 
 
 def day_parity(value):
-    """Retorna 'pares' ou 'impares' a partir do dia do mês."""
+    """Retorna 'pares' ou 'impares' conforme o dia do mês."""
     parsed = parse_date(value)
 
-    if not parsed:
+    if parsed is None:
         return None
 
     return "pares" if parsed.day % 2 == 0 else "impares"
@@ -63,233 +95,239 @@ def day_parity(value):
 
 def get_expected(plantao, message_date=None):
     """
-    Retorna somente os colaboradores efetivamente escalados para o dia.
+    Retorna os colaboradores ativos do plantão selecionado.
 
-    A escala usa:
-      - plantao: diurno_a / noturno_a / diurno_b / noturno_b
-      - dias: pares / impares
-
-    Assim, em uma determinada data, cada posto deve ter o colaborador
-    correspondente à paridade daquele dia.
+    Quando há data, também exige compatibilidade com a paridade.
+    Sem data válida, utiliza o plantão informado sem inferir paridade.
     """
+    if plantao not in VALID_PLANTOES:
+        return []
+
     parity = day_parity(message_date)
 
-    expected = [
-        x
-        for x in SCALE
-        if x.get("plantao") == plantao
-        and x.get("active", True)
+    return [
+        item
+        for item in SCALE
+        if item.get("plantao") == plantao
+        and item.get("active", True)
         and (
             parity is None
-            or x.get("dias") == parity
+            or item.get("dias") == parity
         )
     ]
 
-    return expected
-
 
 def best_employee(name, expected):
-    if not name:
+    """Escolhe o colaborador esperado mais parecido com o nome recebido."""
+    if not expected:
         return None, 0
+
+    # Sem nome, preserva a identificação pelo posto e horário.
+    # A ausência do nome não deve transformar o posto em desconhecido.
+    if not name:
+        return expected[0], 0
 
     best = max(
         expected,
-        key=lambda x: similarity(name, x.get("employee", "")),
-        default=None,
+        key=lambda item: similarity(
+            name,
+            item.get("employee", ""),
+        ),
     )
 
-    score = similarity(name, best.get("employee", "")) if best else 0
+    score = similarity(name, best.get("employee", ""))
 
     return best, score
 
 
-def time_delta(actual, expected):
-    if not actual or not expected:
+def parse_time_minutes(value):
+    """Converte HH:MM em minutos desde meia-noite; inválido retorna None."""
+    if not value:
         return None
 
-    ah, am = map(int, actual.split(":"))
-    eh, em = map(int, expected.split(":"))
+    match = TIME_PATTERN.fullmatch(str(value).strip())
+    if not match:
+        return None
 
-    return (ah * 60 + am) - (eh * 60 + em)
+    hour, minute = map(int, match.groups())
+
+    if hour > 23 or minute > 59:
+        return None
+
+    return hour * 60 + minute
+
+
+def time_delta(actual, expected):
+    """Calcula a diferença em minutos entre o horário real e o esperado."""
+    actual_minutes = parse_time_minutes(actual)
+    expected_minutes = parse_time_minutes(expected)
+
+    if actual_minutes is None or expected_minutes is None:
+        return None
+
+    return actual_minutes - expected_minutes
+
+
+def _base_result(parsed, status, post=None):
+    """Mantém uma estrutura uniforme para os resultados do matcher."""
+    return {
+        "status": status,
+        "post": post,
+        "incoming": parsed.get("incoming"),
+        "assumption_time": parsed.get("assumption_time"),
+        "expected_employee": None,
+        "expected_time": None,
+        "time_status": None,
+        "delta_minutes": None,
+        "employee_divergence": False,
+        "possible_wrong_group": False,
+        "employee_similarity": 0,
+        "confidence": 0,
+        "date": parsed.get("date"),
+        "dias": None,
+    }
 
 
 def classify(parsed, expected):
+    """Classifica uma mensagem contra a escala compatível com o relatório."""
     post = canonical_post(parsed.get("post_raw"))
     incoming = parsed.get("incoming")
-    message_date = parsed.get("date")
 
     if not post:
-        return {
-            "status": "POSTO_NAO_LOCALIZADO",
-            "post": None,
-            "incoming": incoming,
-            "assumption_time": parsed.get("assumption_time"),
-            "expected_employee": None,
-            "expected_time": None,
-            "time_status": None,
-            "delta_minutes": None,
-            "employee_divergence": False,
-            "possible_wrong_group": False,
-            "employee_similarity": 0,
-            "confidence": 0,
-            "date": message_date,
-        }
+        return _base_result(
+            parsed,
+            "POSTO_NAO_LOCALIZADO",
+        )
 
     same_post = [
-        x
-        for x in expected
-        if canonical_post(x.get("posto", x.get("post"))) == post
+        item
+        for item in expected
+        if canonical_post(
+            item.get("posto") or item.get("post")
+        ) == post
     ]
 
     if not same_post:
-        return {
-            "status": "POSTO_NAO_LOCALIZADO",
-            "post": post,
-            "incoming": incoming,
-            "assumption_time": parsed.get("assumption_time"),
-            "expected_employee": None,
-            "expected_time": None,
-            "time_status": None,
-            "delta_minutes": None,
-            "employee_divergence": False,
-            "possible_wrong_group": False,
-            "employee_similarity": 0,
-            "confidence": 0,
-            "date": message_date,
-        }
+        return _base_result(
+            parsed,
+            "POSTO_NAO_LOCALIZADO",
+            post=post,
+        )
 
-    # Se houver mais de um registro para o mesmo posto/paridade,
-    # escolhe o colaborador mais parecido com o nome recebido.
-    # Sem nome, mantém o primeiro registro da escala.
-    exp, score = best_employee(incoming, same_post)
+    expected_item, score = best_employee(incoming, same_post)
 
-    if exp is None:
-        return {
-            "status": "POSTO_NAO_LOCALIZADO",
-            "post": post,
-            "incoming": incoming,
-            "assumption_time": parsed.get("assumption_time"),
-            "expected_employee": None,
-            "expected_time": None,
-            "time_status": None,
-            "delta_minutes": None,
-            "employee_divergence": False,
-            "possible_wrong_group": False,
-            "employee_similarity": 0,
-            "confidence": 0,
-            "date": message_date,
-        }
+    if expected_item is None:
+        return _base_result(
+            parsed,
+            "POSTO_NAO_LOCALIZADO",
+            post=post,
+        )
+
+    expected_time = expected_item.get("expected_time")
+    actual_time = parsed.get("assumption_time")
+    delta = time_delta(actual_time, expected_time)
+
+    if delta is None:
+        time_status = "HORÁRIO NÃO IDENTIFICADO"
+    elif delta == 0:
+        time_status = "REGULAR"
+    elif delta < 0:
+        time_status = f"ADIANTADO {abs(delta)} min"
+    else:
+        time_status = f"ATRASADO {delta} min"
 
     employee_match = score >= 70
 
-    delta = time_delta(
-        parsed.get("assumption_time"),
-        exp.get("expected_time"),
-    )
-
-    if delta is None:
-        tstatus = "HORÁRIO NÃO IDENTIFICADO"
-    elif delta == 0:
-        tstatus = "REGULAR"
-    elif delta < 0:
-        tstatus = f"ADIANTADO {abs(delta)} min"
-    else:
-        tstatus = f"ATRASADO {delta} min"
-
-    msgpost = canonical_post(parsed.get("post_raw"))
-    group = canonical_post(parsed.get("group"))
-
-    wrong_group = bool(
-        msgpost
-        and group
-        and msgpost != group
-        and msgpost == canonical_post(exp.get("post"))
-    )
-
-    return {
+    result = {
         "status": "ASSUNÇÃO_IDENTIFICADA",
-        "post": exp.get("post"),
+        "post": expected_item.get("posto") or expected_item.get("post"),
         "incoming": incoming,
-        "assumption_time": parsed.get("assumption_time"),
-        "expected_employee": exp.get("employee"),
-        "expected_time": exp.get("expected_time"),
-        "time_status": tstatus,
+        "assumption_time": actual_time,
+        "expected_employee": expected_item.get("employee"),
+        "expected_time": expected_time,
+        "time_status": time_status,
         "delta_minutes": delta,
         "employee_divergence": bool(incoming) and not employee_match,
         "employee_similarity": round(score, 1),
-        "possible_wrong_group": wrong_group,
+        # O ID do grupo não é necessariamente o código do posto.
+        # Só habilitar esta alerta quando existir mapeamento explícito.
+        "possible_wrong_group": False,
         "confidence": round(score, 1),
-        "date": message_date,
-        "dias": exp.get("dias"),
+        "date": parsed.get("date"),
+        "dias": expected_item.get("dias"),
     }
+
+    return result
 
 
 def build_report(messages, plantao):
     """
-    Gera o relatório considerando a paridade do dia de cada mensagem.
+    Monta um relatório diário para o plantão selecionado.
 
-    Quando existem mensagens de uma única data, essa data define a escala
-    exibida no relatório. Quando existem várias datas, o matcher continua
-    classificando cada mensagem com sua própria paridade e consolida os
-    postos encontrados.
+    Usa a data válida mais recente do histórico como referência.
+    Só inclui mensagens dessa data, evitando misturar ocorrências de
+    dias diferentes com uma única lista de postos esperados.
     """
+    if plantao not in VALID_PLANTOES:
+        plantao = "diurno_a"
+
     parsed_messages = list(messages)
 
-    # Datas disponíveis nas mensagens.
     dates = [
-        parse_date(message.get("date"))
-        for message in parsed_messages
-        if message.get("date")
+        parsed_date
+        for parsed_date in (
+            parse_date(message.get("date"))
+            for message in parsed_messages
+        )
+        if parsed_date is not None
     ]
-    dates = [value for value in dates if value is not None]
 
-    # Para o roster exibido no dashboard, usa a data das mensagens quando
-    # houver uma única data. Se houver várias, usa a data mais recente.
     reference_date = max(dates) if dates else None
-
     expected = get_expected(plantao, reference_date)
+
+    if reference_date is None:
+        # Sem datas válidas, não é possível separar o histórico por dia.
+        report_messages = parsed_messages
+    elif not expected:
+        # O ciclo selecionado não corresponde à paridade da data.
+        # Não classificar mensagens contra uma escala incompatível.
+        report_messages = []
+    else:
+        report_messages = [
+            message
+            for message in parsed_messages
+            if parse_date(message.get("date")) == reference_date
+        ]
+
+    expected_posts = {
+        canonical_post(item.get("posto") or item.get("post"))
+        for item in expected
+    }
+    expected_posts.discard(None)
 
     results = []
     seen_posts = set()
 
-    expected_posts = {
-        canonical_post(x.get("posto", x.get("post")))
-        for x in expected
-    }
+    for parsed in report_messages:
+        result = classify(parsed, expected)
+        result["raw"] = parsed.get("raw", "")
+        result["group"] = parsed.get("group")
+        result["plantao"] = plantao
 
-    for parsed in parsed_messages:
-        message_date = parse_date(parsed.get("date"))
+        results.append(result)
 
-        # Cada mensagem deve ser comparada contra a escala válida
-        # especificamente para a data daquela mensagem.
-        message_expected = get_expected(
-            plantao,
-            message_date or reference_date,
-        )
-
-        r = classify(parsed, message_expected)
-        r["raw"] = parsed.get("raw", "")
-        r["group"] = parsed.get("group")
-        r["plantao"] = plantao
-        r["date"] = parsed.get("date")
-
-        results.append(r)
-
-        if r.get("status") == "ASSUNÇÃO_IDENTIFICADA":
-            post = canonical_post(r.get("post"))
+        if result.get("status") == "ASSUNÇÃO_IDENTIFICADA":
+            post = canonical_post(result.get("post"))
             if post in expected_posts:
                 seen_posts.add(post)
 
-    # Um posto aparece uma única vez no roster do plantão.
-    # Isso evita contar colaboradores alternados como se estivessem
-    # trabalhando simultaneamente no mesmo posto.
     missing = []
     seen_missing_posts = set()
 
     for item in expected:
-        post = canonical_post(item.get("posto", item.get("post")))
+        post = canonical_post(item.get("posto") or item.get("post"))
 
-        if post in seen_posts or post in seen_missing_posts:
+        if not post or post in seen_posts or post in seen_missing_posts:
             continue
 
         missing.append(item)
@@ -297,12 +335,13 @@ def build_report(messages, plantao):
 
     return {
         "plantao": plantao,
-        "expected_total": len({
-            canonical_post(x.get("posto", x.get("post")))
-            for x in expected
-        }),
+        "expected_total": len(expected_posts),
         "identified_total": len(seen_posts),
         "missing": missing,
         "results": results,
-        "reference_date": reference_date.isoformat() if reference_date else None,
+        "reference_date": (
+            reference_date.isoformat()
+            if reference_date
+            else None
+        ),
     }

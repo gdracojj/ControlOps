@@ -428,14 +428,6 @@ Assumindo o serviço do vigia Adeilson santos com tudo em ordem sem alteração.
         ),
 
         (
-            "PI-TSA-CTOP",
-            """PI-TSA-CTOP PD7
-25/09/26
-ASSUNÇÃO PLANTÃO 07:00 as 19:00 Cláudio Roberto Assumiu Posto Do Antônio
-Vigia Cláudio Roberto Assumindo Serviço Das 07:00 as 19:00 Horas"""
-        ),
-
-        (
             "SE-AJU-AJU",
             """Assunção de serviço
 Vigia: João evangelista assumindo o posto de serviço das 07h as 19h do Vigia: Márcio José
