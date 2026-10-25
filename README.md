@@ -42,7 +42,16 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
 ```
 
-No Windows PowerShell, ative o ambiente com `.venv\Scripts\Activate.ps1` no lugar do comando `source`. A aplicação fica disponível em <http://127.0.0.1:8000>.
+No Windows PowerShell, use os comandos equivalentes:
+
+```powershell
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+```
+
+A aplicação fica disponível em <http://127.0.0.1:8000>.
 
 O cliente opcional do WhatsApp é iniciado separadamente, depois da API e da configuração de grupos:
 
@@ -151,7 +160,7 @@ ControlOps/
 └── requirements.txt
 ```
 
-`converter_escala.py` é um utilitário que altera `data/escala.json` para duas datas específicas; revise o arquivo antes de executá-lo. `main_backup.py` e `dashboard-html.txt` são cópias/rascunhos presentes no repositório, não os componentes usados pela aplicação ativa.
+`converter_escala.py` é um utilitário legado que procura registros com `date` igual a `2026-09-25` ou `2026-09-26` para ajustar o plantão. Os 60 registros atuais de `data/escala.json` não têm o campo `date`, portanto o script não altera seus valores de plantão (embora regrave o JSON). `main_backup.py` e `dashboard-html.txt` são cópias/rascunhos presentes no repositório, não os componentes usados pela aplicação ativa.
 
 ## Dados e limitações conhecidas
 
