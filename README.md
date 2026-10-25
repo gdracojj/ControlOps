@@ -4,7 +4,7 @@ Aplicação Python com API FastAPI para interpretar mensagens de assunção de s
 
 ## Problema e funcionalidades
 
-Mensagens operacionais podem chegar em texto livre, com horários, postos e nomes em formatos diferentes. O ControlOps extrai os campos reconhecidos, compara-os com a escala configurada e apresenta resultados em uma API e em um dashboard.
+Mensagens operacionais podem chegar em texto livre, com horários, postos e nomes em formatos diferentes. O ControlOps extrai os campos reconhecidos, compara-os com a escala configurada e apresenta os resultados em uma API e em um dashboard.
 
 O repositório implementa:
 
@@ -16,96 +16,83 @@ O repositório implementa:
 - cliente opcional Node.js para encaminhar mensagens de grupos do WhatsApp;
 - gerador de mensagens e testes do parser.
 
-A integração com WhatsApp requer configuração própria. No cliente, a lista de grupos monitorados está vazia por padrão; nesse estado, todas as mensagens de grupos são encaminhadas. Configure a lista antes de iniciar o cliente e use apenas grupos autorizados.
+A integração com WhatsApp requer configuração própria. A lista de grupos monitorados está vazia por padrão; nesse estado, o cliente encaminha mensagens de todos os grupos. Configure a lista antes de iniciar o cliente.
 
 ## Requisitos
 
 - Python 3.10 ou superior;
 - Node.js e npm apenas para usar o cliente opcional do WhatsApp;
-- dependências Python listadas em `requirements.txt`.
+- dependências Python listadas em requirements.txt.
 
 ## Stack
 
 - Python, FastAPI, Pydantic, Jinja2 e RapidFuzz;
 - HTML, CSS e JavaScript no dashboard;
 - JSON para escala, aliases e armazenamento local;
-- Node.js, `whatsapp-web.js` e `qrcode-terminal` para a integração opcional.
+- Node.js, whatsapp-web.js e qrcode-terminal para a integração opcional.
 
 ## Instalação e execução
 
-Na raiz do repositório:
+Na raiz do repositório, em Linux ou macOS:
 
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
-```
 
-No Windows PowerShell, use os comandos equivalentes:
+No Windows PowerShell:
 
-```powershell
 py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
-```
 
-A aplicação fica disponível em <http://127.0.0.1:8000>.
+A aplicação fica disponível em http://127.0.0.1:8000.
 
-O cliente opcional do WhatsApp é iniciado separadamente, depois da API e da configuração de grupos:
+Para usar o cliente opcional do WhatsApp, configure os grupos autorizados em MONITORED_GROUPS, inicie a API e execute, na raiz do repositório:
 
-```bash
 npm ci
 node whatsapp/client.js
-```
 
-O cliente solicita autenticação pelo QR Code e encaminha mensagens para `http://127.0.0.1:8000/api/messages`.
+O cliente solicita autenticação pelo QR Code e encaminha as mensagens para http://127.0.0.1:8000/api/messages.
 
 ## Testes
 
-Gere o conjunto local de mensagens e execute o teste de parser que o consome:
+Gere o conjunto local de mensagens e execute o teste de parser:
 
-```bash
 python tests/generate_messages.py
 python tests/test_parser.py
-```
 
-Os testes unitários em `tests/test_parser_unit.py` usam pytest. Para executá-los, instale pytest no ambiente e rode:
+Os testes unitários em tests/test_parser_unit.py usam pytest. Instale-o no ambiente e execute:
 
-```bash
 python -m pip install pytest
 python -m pytest -q
-```
 
-O gerador cria `data/test_messages_1000.json` e o teste grava `data/parser_failures.json`; ambos são artefatos locais ignorados pelo Git.
+O gerador cria data/test_messages_1000.json e o teste grava data/parser_failures.json. Ambos são artefatos locais ignorados pelo Git.
 
 ## API e formato de entrada
 
-- `GET /` — dashboard;
-- `GET /api/report?plantao=diurno_a` — relatório do plantão (`diurno_a`, `noturno_a`, `diurno_b` ou `noturno_b`);
-- `POST /api/messages` — recebe e processa uma mensagem;
-- `POST /api/refresh` — substitui o conjunto de mensagens pelo lote enviado;
-- `POST /api/clear` — limpa o armazenamento local;
-- `GET /teste` — página de testes da interface.
+- GET / — dashboard;
+- GET /api/report?plantao=diurno_a — relatório do plantão (diurno_a, noturno_a, diurno_b ou noturno_b);
+- POST /api/messages — recebe e processa uma mensagem;
+- POST /api/refresh — substitui o conjunto de mensagens pelo lote enviado;
+- POST /api/clear — limpa o armazenamento local;
+- GET /teste — página de testes da interface.
 
-O corpo esperado por `POST /api/messages` é:
+O corpo esperado por POST /api/messages é:
 
-```json
 {
   "group": "ID_DO_GRUPO",
   "message": "texto da mensagem operacional",
   "received_at": "2026-10-25T06:00:00"
 }
-```
 
-`group` e `received_at` são opcionais; `message` é obrigatório. Os campos extraídos pelo parser incluem posto, nome recebido, horário de assunção e data, conforme o conteúdo da mensagem.
+group e received_at são opcionais; message é obrigatório. O parser extrai campos como posto, nome recebido, horário de assunção e data, conforme o conteúdo da mensagem.
 
-O relatório retorna `ok`, o plantão selecionado, totais da escala e de registros identificados, contadores por situação e a lista `results` com os detalhes classificados.
+O relatório inclui o plantão selecionado, totais da escala e de registros identificados, contadores por situação e a lista results com os detalhes classificados.
 
 ## Fluxo e arquitetura
 
-```text
 Cliente WhatsApp opcional ──POST──▶ FastAPI (app/main.py)
                                           │
                                   parser.py / compare.py
@@ -115,17 +102,15 @@ Cliente WhatsApp opcional ──POST──▶ FastAPI (app/main.py)
                               escala e mensagens em JSON
                                           │
                                  dashboard HTML / API
-```
 
-- `app/parser.py` interpreta mensagens não estruturadas.
-- `app/compare.py` compara os campos extraídos com a escala.
-- `app/matcher.py` monta o relatório de acordo com posto, plantão, data e similaridade textual.
-- `app/storage.py` lê e grava mensagens em `data/messages.json`.
-- `app/main.py` expõe as rotas FastAPI e renderiza os templates.
+- app/parser.py interpreta mensagens não estruturadas.
+- app/compare.py compara os campos extraídos com a escala.
+- app/matcher.py monta o relatório de acordo com posto, plantão, data e similaridade textual.
+- app/storage.py lê e grava mensagens em data/messages.json.
+- app/main.py expõe as rotas FastAPI e renderiza os templates.
 
 ## Estrutura do repositório
 
-```text
 ControlOps/
 ├── app/
 │   ├── __init__.py
@@ -158,25 +143,38 @@ ControlOps/
 ├── package.json
 ├── package-lock.json
 └── requirements.txt
-```
 
-`converter_escala.py` é um utilitário legado que procura registros com `date` igual a `2026-09-25` ou `2026-09-26` para ajustar o plantão. Os 60 registros atuais de `data/escala.json` não têm o campo `date`, portanto o script não altera seus valores de plantão (embora regrave o JSON). `main_backup.py` e `dashboard-html.txt` são cópias/rascunhos presentes no repositório, não os componentes usados pela aplicação ativa.
+main_backup.py e dashboard-html.txt são cópias ou rascunhos presentes no repositório, não os componentes usados pela aplicação ativa.
+
+converter_escala.py é um utilitário legado que procura registros com date igual a 2026-09-25 ou 2026-09-26 para ajustar o plantão. Os 60 registros atuais de data/escala.json não têm o campo date; portanto, o script não altera os valores de plantão, embora regrave o JSON.
 
 ## Dados e limitações conhecidas
 
 - A aplicação usa arquivos JSON locais, sem banco de dados ou histórico transacional.
-- Não há rota de leitura `GET /api/messages` na aplicação atual.
-- A escala e os aliases são carregados de arquivos em `data/`; ajuste-os ao ambiente de teste antes de uso.
-- Os arquivos `data/escala.json`, `data/aliases.json` e `data/messages.json` contêm dados fictícios de demonstração. Se forem substituídos por dados reais para uso local, não os redistribua sem sanitização.
-- A pasta `app/static/` está preparada, mas não contém os ativos de imagem citados em documentos antigos.
-- O cliente WhatsApp imprime mensagens no terminal e depende de sessão local do WhatsApp Web.
+- Não há rota de leitura GET /api/messages na aplicação atual.
+- A escala e os aliases são carregados de arquivos em data/.
+- Os arquivos atuais de escala, aliases e mensagens contêm dados fictícios de demonstração.
+- A pasta app/static/ está preparada, mas não contém ativos de imagem.
+- O cliente WhatsApp imprime mensagens no terminal e depende de uma sessão local do WhatsApp Web.
 - A classificação depende dos formatos reconhecidos pelo parser e da qualidade da escala cadastrada.
 
-## Roadmap
+## Aprendizados
 
-Itens planejados, ainda não implementados:
+O desenvolvimento do ControlOps aborda problemas comuns no processamento de dados operacionais, como mensagens incompletas, formatos de horário variados, normalização de nomes, identificação de entidades e rastreabilidade.
 
-- migrar o armazenamento JSON para banco de dados;
-- registrar histórico e logs estruturados de processamento;
-- ampliar indicadores e análises históricas;
-- adicionar monitoramento e validação do pipeline.
+## Princípios
+
+- Separação entre interpretação, comparação, matching, armazenamento e apresentação.
+- Regras de negócio explícitas e testáveis.
+- Uso de dados fictícios para demonstração.
+- Evolução incremental da aplicação e da camada de dados.
+
+## Status
+
+Em desenvolvimento. O projeto já inclui parser, comparação com escala, API, armazenamento JSON, dashboard, integração opcional com WhatsApp e testes do parser. A migração do armazenamento, o histórico estruturado e a ampliação dos indicadores permanecem no roadmap.
+
+## Autor e propósito
+
+Gabriel Silva
+
+Projeto desenvolvido para fins educacionais e de portfólio, com foco prático em Data Engineering, Data Analytics, Python, APIs e automação.
